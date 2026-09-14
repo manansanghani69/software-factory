@@ -47,6 +47,10 @@ Work flows through this Product via the Factory's Line:
 
 Architecture Decision Records live in `docs/adr/`. Domain vocabulary lives in `CONTEXT.md`. Agent-facing operating notes live in `AGENTS.md` and `docs/agents/`.
 
+## Deploy
+
+Push to GitHub → Vercel detects the Next.js project and deploys automatically (push-to-deploy). No action required from `factory new` — the Operator authenticates with Vercel separately when ready. See [Vercel Next.js docs](https://vercel.com/docs/frameworks/nextjs) for setup.
+
 ## Project structure
 
 ```
@@ -56,8 +60,9 @@ Architecture Decision Records live in `docs/adr/`. Domain vocabulary lives in `C
 ├── docs/
 │   ├── adr/           Architecture Decision Records
 │   └── agents/        Agent harness (issue tracker, triage labels, domain docs)
+├── .factory/state/
+│   └── product.json   Product registration (repo, stack, Line state) — gitignored
 ├── CONTEXT.md         Domain glossary for this Product
 ├── AGENTS.md          Agent-facing instructions for this Product's Line
-├── .env.example       Template for local environment
-└── .factory/state/    Product run-state (gitignored)
+└── .env.example       Template for local environment
 ```
