@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# database
+db.sqlite
+db.sqlite-journal
+
+# drizzle
+drizzle/meta/
+
+# factory run-state (gitignored by convention)
+.factory/state/
+
+# misc
+.DS_Store
+*.tsbuildinfo
