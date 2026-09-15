@@ -1,0 +1,5 @@
+# GitHub Issues as the canonical tracker
+
+The Factory's canonical state — tickets, labels, and blocking — lives as GitHub Issues in the repo that owns the Line: this repo for the Factory, a Product's repo for that Product. Chosen over an own data store (local file/SQLite/service) so the Fork's inherited tracker plumbing and github.com's own frontier UI survive, and every inherited skill convention keeps working. Non-issue state that issues can't express — human-gated agent run-states, config, credentials — lives in a thin gitignored store at `.factory/state/` (JSON files to start, SQLite only if queries grow).
+
+Considered: an own store buys a custom schema and views, but orphans the inherited tracker machinery, would displace this very map and its tickets, and rebuilds for free what github.com already renders. Considered: all-Lines-in-the-Factory-repo keeps one orbit but breaks each Product's independent tracker and its "own tracker" place in the vocabulary.

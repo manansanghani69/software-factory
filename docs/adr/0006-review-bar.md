@@ -1,0 +1,11 @@
+# Review bar
+
+The concrete floor the review stage enforces before a Product advances the Line, making ADR 0004's three-layer review operational. Confirmed with the Operator by grilling.
+
+- **Automated layer**: typecheck, lint, build, and the full test suite all green. No percentage coverage floor (coverage games easily); instead a structure rule the review agent verifies — every spec'd behavior has at least one test asserting it. Unit/integration tests only in v1; E2E is out of scope until the Factory program runs and a Product's Line is actually driven.
+- **Review agent** (independent of the author): a fixed, enumerated checklist — every spec'd behavior present and wired end-to-end, no behavior beyond spec (scope control), standards conformance, test presence — plus a judgment pass for broken paths, error handling, and security. It categorizes findings by severity and recommends a disposition; the recommendation is advice only.
+- **Operator gate**: the app on the local dev server, bundled with the spec issue, the automated results summary, and the reviewer's report. The disposition menu follows the evidence — **advance is only offered on a green bar**; an Operator who wants the Product through over a red check halts and reports the fork, never silently overrides.
+- **Revise mechanics**: mechanical failures (automated layer) auto-revise without the Operator — the Product bounces to implementation and re-runs review on its own, and the Operator only surfaces when the automated and review-agent layers clear, or the cap is hit. Revise targets per case: implementation-revision tickets for code-level failures, back to spec if the spec was underspecified or contradictory.
+- **Halt cap**: 2 consecutive failed revise rounds; the third raises halt automatically with the reviewer's evidence, so the Operator redraws the route instead of feeding a loop.
+
+One default bar for every Product; per-Product tuning is deferred until the Factory program exists and is actually driven. Coverage-percentage floors and per-Product bars were rejected as above; E2E was rejected for v1 on the grounds that the running-app gate is the safety net it would provide.
