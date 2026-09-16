@@ -102,6 +102,10 @@ export function discoverProducts(factoryRoot: string): DiscoveredProduct[] {
   return products.sort((a, b) => a.registration.name.localeCompare(b.registration.name))
 }
 
+export function findProduct(products: DiscoveredProduct[], name: string): DiscoveredProduct | null {
+  return products.find((product) => product.registration.name === name) ?? null
+}
+
 function loadRegistration(root: string, registrationPath: string): DiscoveredProduct {
   let parsed: unknown
   try {

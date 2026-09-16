@@ -53,7 +53,8 @@ export function renderState(
     lines.push('    none')
   }
   for (const run of runs) {
-    lines.push(`    ${run.product}: run ${run.runId} — stage=${run.stage} — ${run.suspension ?? 'running'}`)
+    const pick = run.forkPick === null ? '' : ` — picked option ${run.forkPick}`
+    lines.push(`    ${run.product}: run ${run.runId} — stage=${run.stage} — ${run.suspension ?? 'running'}${pick}`)
   }
 
   return lines.join('\n')

@@ -8,6 +8,8 @@ import { readRunTable } from './run-table.ts'
 import { renderState } from './commands/state.ts'
 import { composeDayBrief, renderDayBrief } from './commands/day-brief.ts'
 import { renderTicketsResult, runTicketsCommand } from './commands/tickets.ts'
+import { renderForkResult, runForkCommand } from './commands/fork.ts'
+import { renderOpenResult, runOpenCommand } from './commands/open.ts'
 
 function requireFactoryRoot(): string {
   const root = findFactoryRoot(process.cwd())
@@ -44,6 +46,31 @@ function parsePositiveInteger(value: string): number {
   return number
 }
 
+function parseOptionId(value: string): number {
+  const number = Number(value)
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new InvalidArgumentError('must be a positive integer')
+  }
+  return number
+}
+
+function collectForkOptions(
+  value: string,
+  previous: Array<{ label: string; consequence: string }>,
+): Array<{ label: string; consequence: string }> {
+  const separator = ' :: '
+  const index = value.indexOf(separator)
+  if (index === -1) {
+    throw new InvalidArgumentError('--option must be "<label> :: <consequence>"')
+  }
+  const label = value.slice(0, index).trim()
+  const consequence = value.slice(index + separator.length).trim()
+  if (label.length === 0 || consequence.length === 0) {
+    throw new InvalidArgumentError('--option needs both a <label> and a <consequence>')
+  }
+  return [...previous, { label, consequence }]
+}
+
 function parseRepo(value: string): string {
   if (!/^[\w.-]+\/[\w.-]+$/.test(value)) {
     throw new InvalidArgumentError('must be a GitHub repository in owner/name form')
@@ -70,6 +97,43 @@ program
       config,
     })
     console.log(renderTicketsResult(result))
+  })
+
+program
+  .command('fork')
+  .description('Fork a driven stage: suspend the run on an unbriefed decision and post a fork report with options and a recommendation')
+  .argument('<product>', 'the Product whose run has hit the unbriefed decision')
+  .requiredOption('--decision <text>', 'what the stage was asked to decide')
+  .requiredOption('--found <text>', 'what the stage found')
+  .requiredOption('--option <label :: consequence>', 'an option the stage can see; repeat for each option', collectForkOptions, [])
+  .requiredOption('--recommend <n>', 'the id of the recommended option', parseOptionId)
+  .action(async (product: string, options: { decision: string; found: string; option: Array<{ label: string; consequence: string }>; recommend: number }) => {
+    const root = requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runForkCommand({
+      root,
+      product,
+      decision: options.decision,
+      found: options.found,
+      options: options.option,
+      recommendation: options.recommend,
+      env: process.env,
+    })
+    console.log(renderForkResult(result))
+  })
+
+program
+  .command('open')
+  .description('Attach to a pending fork report on a Product: show the report and take an option-pick to resume the Line')
+  .argument('<product>', 'the Product awaiting a pick')
+  .option('--pick <n>', 'pick the option with this id to resume the Line along it', parseOptionId, null)
+  .action(async (product: string, options: { pick: number | null }) => {
+    const root = requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runOpenCommand({ root, product, pick: options.pick, env: process.env })
+    console.log(renderOpenResult(result))
   })
 
 program.action(() => {

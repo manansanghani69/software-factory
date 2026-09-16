@@ -1,7 +1,7 @@
 import { factoryPaths } from '../paths.ts'
 import type { StageId } from '../config.ts'
 import { discoverProducts } from '../products.ts'
-import { readRunTable } from '../run-table.ts'
+import { latestRunForProduct, readRunTable } from '../run-table.ts'
 import { derivePosition, type Position } from '../position.ts'
 import { readTracker, type TrackerSnapshot } from '../tracker.ts'
 import type { StubResolution } from '../stub.ts'
@@ -32,7 +32,7 @@ export function composeDayBrief(root: string, stub: StubResolution, options: Com
   const runs = readRunTable(factoryPaths(root).workflowsDbPath)
   const products = discoverProducts(root).map((product) => {
     const name = product.registration.name
-    const run = runs.findLast((candidate) => candidate.product === name) ?? null
+    const run = latestRunForProduct(runs, name)
     let tracker: TrackerSnapshot
     if (stub.enabled) {
       tracker = EMPTY_TRACKER
