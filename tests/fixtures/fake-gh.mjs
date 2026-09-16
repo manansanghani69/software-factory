@@ -98,7 +98,17 @@ if (args[0] === 'label' && args[1] === 'list') {
         .map((label) => label.name),
     ),
   ]
-  for (const name of names) process.stdout.write(`${name}\n`)
+  if (typeof opts.json === 'string' && opts.json.split(',').includes('name')) {
+    const rows = names.map((name) => ({ name }))
+    const jq = typeof opts.jq === 'string' ? opts.jq : ''
+    if (jq === '.[].name') {
+      for (const name of names) process.stdout.write(`${name}\n`)
+    } else {
+      process.stdout.write(JSON.stringify(rows))
+    }
+  } else {
+    for (const name of names) process.stdout.write(`${name}\n`)
+  }
 } else if (args[0] === 'label' && args[1] === 'create') {
   const { opts, positional } = parseArgs(args.slice(2))
   const name = positional[0]
@@ -166,6 +176,12 @@ if (args[0] === 'label' && args[1] === 'list') {
   }
   if (typeof opts['remove-assignee'] === 'string') {
     issue.assignees = (issue.assignees ?? []).filter((login) => login !== opts['remove-assignee'])
+  }
+  if (typeof opts['add-label'] === 'string') {
+    issue.labels = [...new Set([...(issue.labels ?? []), opts['add-label']])]
+  }
+  if (typeof opts['remove-label'] === 'string') {
+    issue.labels = (issue.labels ?? []).filter((label) => label !== opts['remove-label'])
   }
   save()
   process.stdout.write(`${issue.url}\n`)

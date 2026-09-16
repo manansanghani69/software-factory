@@ -8,6 +8,7 @@ import { readRunTable } from './run-table.ts'
 import { renderState } from './commands/state.ts'
 import { composeDayBrief, renderDayBrief } from './commands/day-brief.ts'
 import { renderTicketsResult, runTicketsCommand } from './commands/tickets.ts'
+import { renderIntakeResult, runIntakeCommand } from './commands/intake.ts'
 import { renderForkResult, runForkCommand } from './commands/fork.ts'
 import { renderOpenResult, runOpenCommand } from './commands/open.ts'
 
@@ -134,6 +135,25 @@ program
     applyStubMode(process.env, stub.enabled)
     const result = await runOpenCommand({ root, product, pick: options.pick, env: process.env })
     console.log(renderOpenResult(result))
+  })
+
+program
+  .command('intake')
+  .description('Enter a Request (bug report or feature request) for an existing Product and triage it to agent-ready in its Tracker')
+  .argument('<repo>', 'the Product tracker repository, e.g. owner/name', parseRepo)
+  .requiredOption('--title <title>', 'the Request title (a short bug report or feature request heading)')
+  .option('--body <body>', 'the Request body (what is broken or what feature is wanted)')
+  .action(async (repo: string, options: { title: string; body?: string }) => {
+    requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runIntakeCommand({
+      env: process.env,
+      repo,
+      title: options.title,
+      ...(options.body !== undefined ? { body: options.body } : {}),
+    })
+    console.log(renderIntakeResult(result))
   })
 
 program.action(() => {

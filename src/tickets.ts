@@ -1,4 +1,5 @@
 import { resolveGhBin, runGh } from './github.ts'
+import { ensureLabel } from './labels.ts'
 
 export const TICKET_LABEL = 'ready-for-agent'
 
@@ -297,30 +298,14 @@ export async function cutTickets(input: CutTicketsInput): Promise<CutTicketsOutp
 }
 
 async function ensureTicketLabel(repo: string, ghBin: string, env: NodeJS.ProcessEnv): Promise<void> {
-  const existing = await runGh(
-    ghBin,
-    ['label', 'list', '--repo', repo, '--json', 'name', '--jq', '.[].name'],
+  await ensureLabel({
+    repo,
+    label: TICKET_LABEL,
+    color: '0e8a16',
+    description: 'Fully specified, ready for an AFK agent',
     env,
-  )
-  const hasLabel = existing
-    .split(/\r?\n/)
-    .some((name) => name.trim() === TICKET_LABEL)
-  if (hasLabel) return
-  await runGh(
     ghBin,
-    [
-      'label',
-      'create',
-      TICKET_LABEL,
-      '--repo',
-      repo,
-      '--color',
-      '0e8a16',
-      '--description',
-      'Fully specified, ready for an AFK agent',
-    ],
-    env,
-  )
+  })
 }
 
 async function issueDatabaseId(repo: string, issueNumber: number, ghBin: string, env: NodeJS.ProcessEnv): Promise<number> {
