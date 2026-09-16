@@ -252,7 +252,12 @@ if (args[0] === 'label' && args[1] === 'list') {
 } else if (args[0] === 'api') {
   const rest = args.slice(1)
   if (rest[0] === 'user') {
-    process.stdout.write(JSON.stringify({ login: defaultOwner }))
+    const { opts } = parseArgs(rest.slice(1))
+    if (opts.jq === '.login') {
+      process.stdout.write(defaultOwner)
+    } else {
+      process.stdout.write(JSON.stringify({ login: defaultOwner }))
+    }
   } else {
     const { opts, positional } = parseArgs(rest)
     const route = positional[0]

@@ -120,6 +120,7 @@ test('factory --help lists the state command', () => {
 
   assert.equal(status, 0)
   assert.match(stdout, /state/)
+  assert.match(stdout, /new/)
 })
 
 test('the day brief shows a registered scratch Product with its derived position', () => {

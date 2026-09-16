@@ -31,3 +31,13 @@ export function resolveGhBin(env: NodeJS.ProcessEnv = process.env): string {
   const override = env.FACTORY_GH_BIN
   return override !== undefined && override.length > 0 ? override : 'gh'
 }
+
+export async function resolveGhOwner(ghBin: string, env: NodeJS.ProcessEnv = process.env): Promise<string> {
+  const override = env.FACTORY_GH_OWNER
+  if (override !== undefined && override.length > 0) return override
+  const owner = (await runGh(ghBin, ['api', 'user', '--jq', '.login'], env)).trim()
+  if (owner.length === 0) {
+    throw new Error('Cannot determine the GitHub owner: gh returned no login for the authenticated user')
+  }
+  return owner
+}

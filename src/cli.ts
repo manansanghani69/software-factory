@@ -13,6 +13,7 @@ import { renderForkResult, runForkCommand } from './commands/fork.ts'
 import { renderOpenResult, runOpenCommand } from './commands/open.ts'
 import { renderImplementResult, runImplementCliCommand } from './commands/implementation.ts'
 import { renderReviewResult, runReviewCliCommand } from './commands/review.ts'
+import { renderNewResult, runNewCommand } from './commands/new.ts'
 
 function requireFactoryRoot(): string {
   const root = findFactoryRoot(process.cwd())
@@ -80,6 +81,18 @@ function parseRepo(value: string): string {
   }
   return value
 }
+
+program
+  .command('new')
+  .description('Scaffold a fresh Product repo — sibling directory plus a GitHub repo with the five inherited labels')
+  .argument('<product>', 'name of the new Product')
+  .action(async (product: string) => {
+    const root = requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runNewCommand({ root, env: process.env, product })
+    console.log(renderNewResult(result))
+  })
 
 program
   .command('tickets')
