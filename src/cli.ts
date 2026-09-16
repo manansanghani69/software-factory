@@ -11,6 +11,7 @@ import { renderTicketsResult, runTicketsCommand } from './commands/tickets.ts'
 import { renderIntakeResult, runIntakeCommand } from './commands/intake.ts'
 import { renderForkResult, runForkCommand } from './commands/fork.ts'
 import { renderOpenResult, runOpenCommand } from './commands/open.ts'
+import { renderImplementResult, runImplementCliCommand } from './commands/implementation.ts'
 
 function requireFactoryRoot(): string {
   const root = findFactoryRoot(process.cwd())
@@ -154,6 +155,22 @@ program
       ...(options.body !== undefined ? { body: options.body } : {}),
     })
     console.log(renderIntakeResult(result))
+  })
+
+program
+  .command('implement')
+  .description('Drive the implementation stage: pick the next frontier ticket, work it on a sibling checkout, and open a PR')
+  .argument('<product>', 'the Product to implement for')
+  .action(async (product: string) => {
+    const root = requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runImplementCliCommand({
+      root,
+      product,
+      env: process.env,
+    })
+    console.log(renderImplementResult(result))
   })
 
 program.action(() => {

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 const SKILL_NAMES: Readonly<Record<string, string>> = {
   tickets: 'to-tickets',
+  implementation: 'implement',
 }
 
 export function stageSkillName(stage: string): string | null {

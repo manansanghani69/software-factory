@@ -6,9 +6,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { loadStageInstructions, skillsDir, stageSkillName } from '../src/skills.ts'
 
-test('stageSkillName maps the tickets stage to the to-tickets skill', () => {
+test('stageSkillName maps the tickets stage to to-tickets and implementation to implement', () => {
   assert.equal(stageSkillName('tickets'), 'to-tickets')
-  assert.equal(stageSkillName('implementation'), null)
+  assert.equal(stageSkillName('implementation'), 'implement')
+  assert.equal(stageSkillName('review'), null)
 })
 
 test('skillsDir defaults to the home-agent skills path and honors the override', () => {

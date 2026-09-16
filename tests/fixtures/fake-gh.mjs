@@ -11,7 +11,7 @@ mkdirSync(dirname(statePath), { recursive: true })
 
 const defaultOwner = process.env.FAKE_GH_OWNER !== undefined && process.env.FAKE_GH_OWNER.length > 0 ? process.env.FAKE_GH_OWNER : 'fake-owner'
 
-let state = { issues: [], nextNumber: 1, nextId: 1000001, repos: [], labels: [] }
+let state = { issues: [], prs: [], nextNumber: 1, nextPrNumber: 1, nextId: 1000001, repos: [], labels: [] }
 if (existsSync(statePath)) {
   const parsed = JSON.parse(readFileSync(statePath, 'utf-8'))
   if (typeof parsed === 'object' && parsed !== null && Array.isArray(parsed.issues)) {
@@ -19,6 +19,8 @@ if (existsSync(statePath)) {
     if (state.nextId === undefined || state.nextId === null) {
       state.nextId = state.issues.reduce((max, issue) => Math.max(max, issueId(issue)), 1000000) + 1
     }
+    if (state.prs === undefined) state.prs = []
+    if (state.nextPrNumber === undefined) state.nextPrNumber = state.prs.length + 1
   }
 }
 
@@ -172,7 +174,8 @@ if (args[0] === 'label' && args[1] === 'list') {
   }
   if (typeof opts.body === 'string') issue.body = opts.body
   if (typeof opts['add-assignee'] === 'string') {
-    issue.assignees = [...new Set([...(issue.assignees ?? []), opts['add-assignee']])]
+    const login = opts['add-assignee'] === '@me' ? defaultOwner : opts['add-assignee']
+    issue.assignees = [...new Set([...(issue.assignees ?? []), login])]
   }
   if (typeof opts['remove-assignee'] === 'string') {
     issue.assignees = (issue.assignees ?? []).filter((login) => login !== opts['remove-assignee'])
@@ -293,6 +296,29 @@ if (args[0] === 'label' && args[1] === 'list') {
       process.exit(2)
     }
   }
+} else if (args[0] === 'pr' && args[1] === 'create') {
+  const { opts } = parseArgs(args.slice(2))
+  const repo = typeof opts.repo === 'string' ? opts.repo : ''
+  const title = typeof opts.title === 'string' ? opts.title : ''
+  const body = typeof opts.body === 'string' ? opts.body : ''
+  const head = typeof opts.head === 'string' ? opts.head : 'feature'
+  const base = typeof opts.base === 'string' ? opts.base : 'main'
+  const stateVal = typeof opts.state === 'string' ? opts.state : 'open'
+  const number = state.nextPrNumber
+  state.nextPrNumber = number + 1
+  const id = state.nextId
+  state.nextId = id + 1
+  const url = `https://github.com/${repo}/pull/${number}`
+  state.prs.push({ number, id, title, body, repo, head, base, state: stateVal, url, createdAt: new Date().toISOString() })
+  save()
+  const wanted = typeof opts.json === 'string' ? opts.json.split(',').filter(Boolean) : []
+  const out = {}
+  for (const field of wanted) {
+    if (field === 'number') out.number = number
+    else if (field === 'url') out.url = url
+    else if (field === 'title') out.title = title
+  }
+  process.stdout.write(JSON.stringify(out))
 } else {
   console.error(`fake gh: unsupported subcommand ${args.join(' ')}`)
   process.exit(2)
