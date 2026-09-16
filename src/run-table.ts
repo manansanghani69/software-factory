@@ -41,6 +41,21 @@ export function updateRunSuspension(
   })
 }
 
+export function updateRunStage(
+  dbPath: string,
+  runId: string,
+  stage: StageId,
+  suspension: SuspensionPoint | null,
+  now: string = new Date().toISOString(),
+): void {
+  withRunDb(dbPath, runId, (db) => {
+    const result = db
+      .prepare(`UPDATE ${RUN_TABLE_NAME} SET stage = ?, suspension = ?, updated_at = ? WHERE run_id = ?`)
+      .run(stage, suspension, now, runId)
+    assertChanged(result, runId, dbPath)
+  })
+}
+
 export function forkRun(dbPath: string, runId: string, now: string = new Date().toISOString()): void {
   withRunDb(dbPath, runId, (db) => {
     ensureRunTableColumn(db, 'fork_pick', 'INTEGER')

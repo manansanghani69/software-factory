@@ -12,6 +12,7 @@ import { renderIntakeResult, runIntakeCommand } from './commands/intake.ts'
 import { renderForkResult, runForkCommand } from './commands/fork.ts'
 import { renderOpenResult, runOpenCommand } from './commands/open.ts'
 import { renderImplementResult, runImplementCliCommand } from './commands/implementation.ts'
+import { renderReviewResult, runReviewCliCommand } from './commands/review.ts'
 
 function requireFactoryRoot(): string {
   const root = findFactoryRoot(process.cwd())
@@ -171,6 +172,22 @@ program
       env: process.env,
     })
     console.log(renderImplementResult(result))
+  })
+
+program
+  .command('review')
+  .description('Run the review bar: typecheck, lint, build, and test; auto-revise mechanical failures')
+  .argument('<product>', 'the Product to review')
+  .action(async (product: string) => {
+    const root = requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runReviewCliCommand({
+      root,
+      product,
+      env: process.env,
+    })
+    console.log(renderReviewResult(result))
   })
 
 program.action(() => {
