@@ -1,0 +1,5 @@
+# Default Product stack: full-stack Next.js on TypeScript
+
+The Factory's Products are web apps its agents scaffold and drive to ship. To keep a day-one Product runnable from nothing, the Factory standardises on one stack: **Node/TypeScript on a full-stack framework (Next.js)** — server-first data handling, SQLite via Drizzle ORM (schema kept Postgres-compatible for later growth), no auth in the base scaffold with Auth.js as the recommended path, and local dev (`npm run dev`) with Vercel as the recommended deploy target. No alternative Product stacks are supported yet; the default must prove itself first.
+
+Chosen over picked-component stacks (Express + React, FastAPI + Svelte) so the scaffold stays one decision, and over Python (richest agent frameworks, but community-maintained GitHub SDK and weaker runtime-integration story) and Go (best distribution, weakest agent and GitHub ecosystem). The Factory's agent harness is TypeScript-native, and Octokit gives first-party GitHub integration for the tracker work every Product's Line inherits.

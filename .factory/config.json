@@ -1,0 +1,14 @@
+{
+  "reviseCap": 2,
+  "models": {
+    "default": "anthropic/claude-sonnet-4-6",
+    "stages": {
+      "sharpening": "anthropic/claude-sonnet-4-6",
+      "spec": "anthropic/claude-sonnet-4-6",
+      "tickets": "anthropic/claude-sonnet-4-6",
+      "implementation": "anthropic/claude-sonnet-4-6",
+      "review": "anthropic/claude-sonnet-4-6",
+      "ship": "anthropic/claude-sonnet-4-6"
+    }
+  }
+}

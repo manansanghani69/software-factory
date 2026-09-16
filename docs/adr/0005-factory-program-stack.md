@@ -1,0 +1,9 @@
+# Factory program stack
+
+The Factory program is written in **TypeScript on Node.js**, orchestrating agent sessions with **Mastra**, and its first proof is a thin slice that runs an idea through sharpening to the spec gate.
+
+TypeScript wins over Python and Go on the balance of the Factory's needs. GitHub integration is the strongest story — Octokit is GitHub's first-party, fully typed SDK covering issues, labels, sub-issues, and dependencies, and the `gh` CLI (itself JSON-native) covers any gap. Agent orchestration is served by Mastra, the TypeScript-native, multi-provider framework whose workflow engine (`.then()`, `.branch()`, `.parallel()`) maps directly onto the Line's stages and whose `suspend()`/`resume()` HITL maps onto the Line's gates. Model flexibility is preserved — Mastra addresses OpenAI, Anthropic, and Google by string. Python's richer agent ecosystem (LangGraph's production-mature HITL) was the strongest alternative, but its GitHub story is community-maintained (PyGithub, no native GraphQL) and Mastra's relative youth is bounded by the Factory's constrained single-operator scope. Go was ruled out by its weak agent-orchestration story.
+
+The first milestone proves the choice before the full build: `factory idea` → sharpening agent → spec gate (halt). It exercises every critical capability — the CLI surface, GitHub issue creation, an agent session driven by an inherited skill, and a human gate — reconstructing the Line's grammar with one slice. If it works, the remaining Line stages are more of the same mechanics.
+
+Python+LangGraph and Go were rejected as above; a no-framework build was rejected on the same grounds as Go, since the state machine, checkpointing, and human gates would all be hand-built.
