@@ -13,6 +13,7 @@ import { renderForkResult, runForkCommand } from './commands/fork.ts'
 import { renderOpenResult, runOpenCommand } from './commands/open.ts'
 import { renderImplementResult, runImplementCliCommand } from './commands/implementation.ts'
 import { renderReviewResult, runReviewCliCommand } from './commands/review.ts'
+import { renderIdeaResult, runIdeaCliCommand } from './commands/idea.ts'
 import { renderNewResult, runNewCommand } from './commands/new.ts'
 
 function requireFactoryRoot(): string {
@@ -158,8 +159,9 @@ program
   .description('Attach to a pending gate or fork on a Product: show evidence and take a Disposition or option-pick')
   .argument('<product>', 'the Product awaiting a Disposition or pick')
   .option('--pick <n>', 'pick the option with this id to resume the Line along it', parseOptionId, null)
-  .option('--disposition <disposition>', 'advance, revise, or halt at the review gate', parseDisposition, null)
+  .option('--disposition <disposition>', 'advance, revise, or halt at a gate', parseDisposition, null)
   .option('--target <target>', 'implementation or spec — where revise sends the Line', parseTarget, null)
+  .option('--feedback <text>', 'Operator notes for the sharpener when revising at the spec gate', (value: string) => value, null)
   .action(
     async (
       product: string,
@@ -167,6 +169,7 @@ program
         pick: number | null
         disposition: 'advance' | 'revise' | 'halt' | null
         target: 'implementation' | 'spec' | null
+        feedback: string | null
       },
     ) => {
       const root = requireFactoryRoot()
@@ -182,10 +185,29 @@ program
         env: process.env,
         disposition: options.disposition,
         target: options.target,
+        feedback: options.feedback,
       })
       console.log(renderOpenResult(result))
     },
   )
+
+program
+  .command('idea')
+  .description('Record an Idea for a Product, drive sharpening, and suspend at the spec gate')
+  .argument('<product>', 'the Product whose Line this Idea enters')
+  .argument('<idea>', 'the raw Idea text')
+  .action(async (product: string, idea: string) => {
+    const root = requireFactoryRoot()
+    const stub = resolveStub(Boolean(program.opts().stub), process.env)
+    applyStubMode(process.env, stub.enabled)
+    const result = await runIdeaCliCommand({
+      root,
+      product,
+      idea,
+      env: process.env,
+    })
+    console.log(renderIdeaResult(result))
+  })
 
 program
   .command('intake')

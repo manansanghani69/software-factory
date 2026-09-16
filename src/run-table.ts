@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { STAGES, type StageId } from './config.ts'
 import type { SuspensionPoint } from './position.ts'
@@ -25,6 +26,56 @@ export class RunTableError extends Error {
 
 export function latestRunForProduct(runs: RunRecord[], product: string): RunRecord | null {
   return runs.findLast((run) => run.product === product) ?? null
+}
+
+export interface InsertRunInput {
+  runId: string
+  product: string
+  workflowName: string
+  stage: StageId
+  suspension: SuspensionPoint | null
+  issueNumber: number | null
+  now?: string
+}
+
+export function insertRun(dbPath: string, input: InsertRunInput): void {
+  mkdirSync(dirname(dbPath), { recursive: true })
+  let db: DatabaseSync
+  try {
+    db = new DatabaseSync(dbPath)
+  } catch (error) {
+    throw new RunTableError(`Cannot open the workflows database at ${dbPath}: ${(error as Error).message}`)
+  }
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS ${RUN_TABLE_NAME} (
+      run_id TEXT PRIMARY KEY,
+      product TEXT NOT NULL,
+      workflow_name TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      suspension TEXT,
+      issue_number INTEGER,
+      fork_pick INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`)
+    const now = input.now ?? new Date().toISOString()
+    db.prepare(
+      `INSERT INTO ${RUN_TABLE_NAME}
+        (run_id, product, workflow_name, stage, suspension, issue_number, fork_pick, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    ).run(
+      input.runId,
+      input.product,
+      input.workflowName,
+      input.stage,
+      input.suspension,
+      input.issueNumber,
+      now,
+      now,
+    )
+  } finally {
+    db.close()
+  }
 }
 
 export function updateRunSuspension(

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { factoryPaths } from '../paths.ts'
+import { loadConfig } from '../config.ts'
 import { discoverProducts, findProduct } from '../products.ts'
 import { latestRunForProduct, readRunTable, resumeRunAlongPick } from '../run-table.ts'
 import { resolveGhBin } from '../github.ts'
@@ -26,6 +27,13 @@ import {
   type ReviewGateEvidence,
   type ReviseTarget,
 } from '../review.ts'
+import {
+  IdeaError,
+  applySpecDisposition,
+  loadSpecGateEvidence,
+  type SpecDispositionResult,
+  type SpecGateEvidence,
+} from '../idea.ts'
 
 export interface OpenCommandInput {
   root: string
@@ -34,6 +42,7 @@ export interface OpenCommandInput {
   env: NodeJS.ProcessEnv
   disposition?: Disposition | null
   target?: ReviseTarget | null
+  feedback?: string | null
 }
 
 export type OpenCommandResult =
@@ -64,6 +73,14 @@ export type OpenCommandResult =
       appStarted: boolean
     }
   | { kind: 'disposed'; runId: string; result: ReviewDispositionResult }
+  | {
+      kind: 'spec-gate'
+      product: string
+      runId: string
+      repo: string
+      evidence: SpecGateEvidence
+    }
+  | { kind: 'spec-disposed'; runId: string; result: SpecDispositionResult }
   | { kind: 'idle'; product: string; stage: string | null; suspension: string | null }
 
 export async function runOpenCommand(input: OpenCommandInput): Promise<OpenCommandResult> {
@@ -71,6 +88,7 @@ export async function runOpenCommand(input: OpenCommandInput): Promise<OpenComma
   const ghBin = resolveGhBin(env)
   const disposition = input.disposition ?? null
   const target = input.target ?? null
+  const feedback = input.feedback ?? null
   const products = discoverProducts(input.root)
   const registration = findProduct(products, input.product)
   if (registration === null) {
@@ -79,8 +97,46 @@ export async function runOpenCommand(input: OpenCommandInput): Promise<OpenComma
   if (target !== null && disposition !== 'revise') {
     throw new ReviewError('--target is only valid with --disposition revise')
   }
+  if (feedback !== null && disposition !== 'revise') {
+    throw new IdeaError('--feedback is only valid with --disposition revise')
+  }
   const dbPath = factoryPaths(input.root).workflowsDbPath
   const run = latestRunForProduct(readRunTable(dbPath), input.product)
+
+  if (run?.suspension === 'spec-gate') {
+    if (input.pick !== null) {
+      throw new IdeaError(`nothing awaits a pick for ${input.product}: at spec-gate`)
+    }
+    if (target !== null) {
+      throw new IdeaError('--target is only valid at the review gate')
+    }
+    if (run.issueNumber === null) {
+      throw new IdeaError(`run ${run.runId} for ${input.product} is at the spec gate but has no Line issue`)
+    }
+    const repo = registration.registration.repo
+    if (disposition !== null) {
+      const result = await applySpecDisposition({
+        repo,
+        product: input.product,
+        issueNumber: run.issueNumber,
+        runId: run.runId,
+        dbPath,
+        disposition,
+        ...(feedback !== null ? { feedback } : {}),
+        config: loadConfig(input.root),
+        env,
+      })
+      return { kind: 'spec-disposed', runId: run.runId, result }
+    }
+    const evidence = await loadSpecGateEvidence({ repo, issueNumber: run.issueNumber, env, ghBin })
+    return {
+      kind: 'spec-gate',
+      product: input.product,
+      runId: run.runId,
+      repo,
+      evidence,
+    }
+  }
 
   if (run?.suspension === 'review-gate') {
     if (input.pick !== null) {
@@ -216,6 +272,12 @@ export function renderOpenResult(result: OpenCommandResult): string {
   if (result.kind === 'review-gate') {
     return renderReviewGate(result)
   }
+  if (result.kind === 'spec-gate') {
+    return renderSpecGate(result)
+  }
+  if (result.kind === 'spec-disposed') {
+    return renderSpecDisposition(result.result)
+  }
   if (result.kind === 'disposed') {
     return renderDisposition(result.result)
   }
@@ -260,6 +322,43 @@ function renderReviewGate(result: Extract<OpenCommandResult, { kind: 'review-gat
   for (const line of reportExcerpt(evidence.reviewerReport, 16)) lines.push(`    ${line}`)
   lines.push('  note: Vercel deploy stays documented-only, executed by the Operator')
   return lines.join('\n')
+}
+
+function renderSpecGate(result: Extract<OpenCommandResult, { kind: 'spec-gate' }>): string {
+  const evidence = result.evidence
+  const lines = [
+    'SPEC GATE',
+    `  product: ${result.product}`,
+    `  run: ${result.runId}`,
+    `  idea: #${evidence.issueNumber} — ${evidence.title}`,
+    '  spec excerpt:',
+    ...specExcerpt(evidence.spec).map((line) => `    ${line}`),
+    '  dispositions: advance, revise',
+    `  advance: factory open ${result.product} --disposition advance`,
+    `  revise: factory open ${result.product} --disposition revise --feedback "<notes>"`,
+  ]
+  return lines.join('\n')
+}
+
+function renderSpecDisposition(result: SpecDispositionResult): string {
+  if (result.disposition === 'advance') {
+    return [
+      'SPEC ACCEPTED',
+      `  product: ${result.product}`,
+      `  idea: #${result.issueNumber}`,
+      '  disposition: advance',
+      '  the Idea issue is closed',
+      '  the Line continues to tickets',
+    ].join('\n')
+  }
+  return [
+    'SPEC REVISED',
+    `  product: ${result.product}`,
+    `  idea: #${result.issueNumber}`,
+    '  disposition: revise',
+    "  the sharpener re-ran with the Operator's feedback",
+    '  the Line is suspended at the spec gate',
+  ].join('\n')
 }
 
 function specExcerpt(spec: string): string[] {

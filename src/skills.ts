@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const SKILL_NAMES: Readonly<Record<string, string>> = {
+  sharpening: 'to-spec',
   tickets: 'to-tickets',
   implementation: 'implement',
   review: 'code-review',

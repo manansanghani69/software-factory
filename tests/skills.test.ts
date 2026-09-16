@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import { loadStageInstructions, skillsDir, stageSkillName } from '../src/skills.ts'
 
 test('stageSkillName maps the tickets stage to to-tickets and implementation to implement', () => {
+  assert.equal(stageSkillName('sharpening'), 'to-spec')
   assert.equal(stageSkillName('tickets'), 'to-tickets')
   assert.equal(stageSkillName('implementation'), 'implement')
   assert.equal(stageSkillName('review'), 'code-review')
@@ -21,10 +22,13 @@ test('skillsDir defaults to the home-agent skills path and honors the override',
 test('loadStageInstructions reads the tickets skill from the configured skills directory', () => {
   const dir = mkdtempSync(join(tmpdir(), 'factory-skills-'))
   mkdirSync(join(dir, 'to-tickets'), { recursive: true })
+  mkdirSync(join(dir, 'to-spec'), { recursive: true })
   writeFileSync(join(dir, 'to-tickets', 'SKILL.md'), 'Cut tickets natively.\n', 'utf-8')
+  writeFileSync(join(dir, 'to-spec', 'SKILL.md'), 'Sharpen the Idea into a spec.\n', 'utf-8')
   try {
     const instructions = loadStageInstructions('tickets', { FACTORY_SKILLS_DIR: dir })
     assert.equal(instructions, 'Cut tickets natively.')
+    assert.equal(loadStageInstructions('sharpening', { FACTORY_SKILLS_DIR: dir }), 'Sharpen the Idea into a spec.')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
