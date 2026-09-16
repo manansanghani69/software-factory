@@ -126,18 +126,53 @@ program
     console.log(renderForkResult(result))
   })
 
+function parseDisposition(value: string): 'advance' | 'revise' | 'halt' {
+  if (value !== 'advance' && value !== 'revise' && value !== 'halt') {
+    throw new InvalidArgumentError('must be advance, revise, or halt')
+  }
+  return value
+}
+
+function parseTarget(value: string): 'implementation' | 'spec' {
+  if (value !== 'implementation' && value !== 'spec') {
+    throw new InvalidArgumentError('must be implementation or spec')
+  }
+  return value
+}
+
 program
   .command('open')
-  .description('Attach to a pending fork report on a Product: show the report and take an option-pick to resume the Line')
-  .argument('<product>', 'the Product awaiting a pick')
+  .description('Attach to a pending gate or fork on a Product: show evidence and take a Disposition or option-pick')
+  .argument('<product>', 'the Product awaiting a Disposition or pick')
   .option('--pick <n>', 'pick the option with this id to resume the Line along it', parseOptionId, null)
-  .action(async (product: string, options: { pick: number | null }) => {
-    const root = requireFactoryRoot()
-    const stub = resolveStub(Boolean(program.opts().stub), process.env)
-    applyStubMode(process.env, stub.enabled)
-    const result = await runOpenCommand({ root, product, pick: options.pick, env: process.env })
-    console.log(renderOpenResult(result))
-  })
+  .option('--disposition <disposition>', 'advance, revise, or halt at the review gate', parseDisposition, null)
+  .option('--target <target>', 'implementation or spec — where revise sends the Line', parseTarget, null)
+  .action(
+    async (
+      product: string,
+      options: {
+        pick: number | null
+        disposition: 'advance' | 'revise' | 'halt' | null
+        target: 'implementation' | 'spec' | null
+      },
+    ) => {
+      const root = requireFactoryRoot()
+      const stub = resolveStub(Boolean(program.opts().stub), process.env)
+      applyStubMode(process.env, stub.enabled)
+      if (options.pick !== null && options.disposition !== null) {
+        throw new InvalidArgumentError('use either --pick or --disposition, not both')
+      }
+      const result = await runOpenCommand({
+        root,
+        product,
+        pick: options.pick,
+        env: process.env,
+        disposition: options.disposition,
+        target: options.target,
+      })
+      console.log(renderOpenResult(result))
+    },
+  )
 
 program
   .command('intake')

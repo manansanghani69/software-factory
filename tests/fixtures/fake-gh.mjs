@@ -319,6 +319,55 @@ if (args[0] === 'label' && args[1] === 'list') {
     else if (field === 'title') out.title = title
   }
   process.stdout.write(JSON.stringify(out))
+} else if (args[0] === 'pr' && args[1] === 'list') {
+  const { opts } = parseArgs(args.slice(2))
+  const repo = typeof opts.repo === 'string' ? opts.repo : ''
+  const stateFilter = typeof opts.state === 'string' ? opts.state : 'open'
+  const wanted = typeof opts.json === 'string' ? opts.json.split(',').filter(Boolean) : []
+  const rows = (state.prs ?? [])
+    .filter((pr) => repo.length === 0 || pr.repo === repo)
+    .filter((pr) => {
+      if (stateFilter === 'all') return true
+      if (stateFilter === 'closed' || stateFilter === 'merged') return pr.state === 'merged' || pr.state === 'closed'
+      return pr.state === 'open'
+    })
+    .map((pr) => {
+      if (wanted.length === 0) return pr
+      const out = {}
+      for (const field of wanted) {
+        if (field === 'number') out.number = pr.number
+        else if (field === 'url') out.url = pr.url
+        else if (field === 'title') out.title = pr.title
+        else if (field === 'body') out.body = pr.body
+        else if (field === 'state') out.state = pr.state
+        else if (field === 'head') out.head = pr.head
+        else if (field === 'headRefName') out.headRefName = pr.head
+        else if (field === 'base') out.base = pr.base
+      }
+      return out
+    })
+  process.stdout.write(JSON.stringify(rows))
+} else if (args[0] === 'pr' && args[1] === 'merge') {
+  const { positional } = parseArgs(args.slice(2))
+  const number = Number(positional[0])
+  const pr = state.prs.find((candidate) => candidate.number === number)
+  if (pr === undefined) {
+    console.error(`fake gh: no pr #${number}`)
+    process.exit(3)
+  }
+  pr.state = 'merged'
+  save()
+  process.stdout.write(`Pull request #${number} merged\n`)
+} else if (args[0] === 'issue' && args[1] === 'reopen') {
+  const { positional } = parseArgs(args.slice(2))
+  const number = Number(positional[0])
+  const issue = state.issues.find((candidate) => candidate.number === number)
+  if (issue === undefined) {
+    console.error(`fake gh: no issue #${number}`)
+    process.exit(3)
+  }
+  issue.closed = false
+  save()
 } else {
   console.error(`fake gh: unsupported subcommand ${args.join(' ')}`)
   process.exit(2)

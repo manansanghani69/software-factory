@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULT_CONFIG, STAGES, type FactoryConfig } from '../src/config.ts'
-import { createStageAgent } from '../src/mastra/stage-agent.ts'
+import { createReviewerAgent, createStageAgent } from '../src/mastra/stage-agent.ts'
 
 test('FACTORY_MODEL_<STAGE> overrides one stage model without touching the others', async () => {
   const env = { FACTORY_MODEL_REVIEW: 'openai/gpt-4o' }
@@ -20,6 +20,14 @@ test('createStageAgent routes every Line stage to the v1 default from config', a
     assert.equal(model.provider, 'anthropic', stage)
     assert.equal(model.modelId, 'claude-sonnet-4-6', stage)
   }
+})
+
+test('the reviewer agent is a distinct agent from the implementation author', async () => {
+  const reviewer = createReviewerAgent(DEFAULT_CONFIG, {})
+  const author = createStageAgent('implementation', DEFAULT_CONFIG, {})
+  assert.equal(reviewer.id, 'reviewer-agent')
+  assert.equal(author.id, 'implementation-agent')
+  assert.notEqual(reviewer.id, author.id)
 })
 
 test('a config stage-model override is the model Mastra binds at construction', async () => {

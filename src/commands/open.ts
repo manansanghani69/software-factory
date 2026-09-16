@@ -1,7 +1,11 @@
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { factoryPaths } from '../paths.ts'
 import { discoverProducts, findProduct } from '../products.ts'
 import { latestRunForProduct, readRunTable, resumeRunAlongPick } from '../run-table.ts'
 import { resolveGhBin } from '../github.ts'
+import { implementationCheckoutRoot } from '../implementation.ts'
+import { isStubEnvSet } from '../stub.ts'
 import {
   ForkError,
   postComment,
@@ -11,12 +15,25 @@ import {
   type ForkOption,
   type ForkReport,
 } from '../fork.ts'
+import {
+  PRODUCT_APP_URL,
+  ReviewError,
+  applyReviewDisposition,
+  loadReviewGateEvidence,
+  type Disposition,
+  type ProductPr,
+  type ReviewDispositionResult,
+  type ReviewGateEvidence,
+  type ReviseTarget,
+} from '../review.ts'
 
 export interface OpenCommandInput {
   root: string
   product: string
   pick: number | null
   env: NodeJS.ProcessEnv
+  disposition?: Disposition | null
+  target?: ReviseTarget | null
 }
 
 export type OpenCommandResult =
@@ -39,18 +56,69 @@ export type OpenCommandResult =
       optionId: number
       option: ForkOption
     }
+  | {
+      kind: 'review-gate'
+      product: string
+      runId: string
+      evidence: ReviewGateEvidence
+      appStarted: boolean
+    }
+  | { kind: 'disposed'; runId: string; result: ReviewDispositionResult }
   | { kind: 'idle'; product: string; stage: string | null; suspension: string | null }
 
 export async function runOpenCommand(input: OpenCommandInput): Promise<OpenCommandResult> {
   const env = input.env
   const ghBin = resolveGhBin(env)
+  const disposition = input.disposition ?? null
+  const target = input.target ?? null
   const products = discoverProducts(input.root)
   const registration = findProduct(products, input.product)
   if (registration === null) {
     throw new ForkError(`no Product named "${input.product}" is registered`)
   }
+  if (target !== null && disposition !== 'revise') {
+    throw new ReviewError('--target is only valid with --disposition revise')
+  }
   const dbPath = factoryPaths(input.root).workflowsDbPath
   const run = latestRunForProduct(readRunTable(dbPath), input.product)
+
+  if (run?.suspension === 'review-gate') {
+    if (input.pick !== null) {
+      throw new ReviewError(`nothing awaits a pick for ${input.product}: at review-gate`)
+    }
+    if (run.issueNumber === null) {
+      throw new ReviewError(`run ${run.runId} for ${input.product} is at the review gate but has no Line issue`)
+    }
+    const repo = registration.registration.repo
+    if (disposition !== null) {
+      const result = await applyReviewDisposition({
+        repo,
+        product: input.product,
+        issueNumber: run.issueNumber,
+        runId: run.runId,
+        dbPath,
+        disposition,
+        target,
+        env,
+      })
+      return { kind: 'disposed', runId: run.runId, result }
+    }
+    const evidence = await loadReviewGateEvidence({ repo, issueNumber: run.issueNumber, env, ghBin })
+    const app = startProductApp(registration.root, evidence.pr, env)
+    return {
+      kind: 'review-gate',
+      product: input.product,
+      runId: run.runId,
+      evidence: { ...evidence, appUrl: app.url },
+      appStarted: app.started,
+    }
+  }
+
+  if (disposition !== null) {
+    const position = run === null ? 'no run in flight' : `at ${run.suspension ?? 'driving'}`
+    throw new ReviewError(`no review gate awaits a Disposition for ${input.product}: ${position}`)
+  }
+
   if (run === null || run.suspension !== 'fork') {
     if (input.pick !== null) {
       const position = run === null ? 'no run in flight' : `at ${run.suspension ?? 'driving'}`
@@ -100,6 +168,31 @@ export async function runOpenCommand(input: OpenCommandInput): Promise<OpenComma
   }
 }
 
+function startProductApp(
+  productRoot: string,
+  pr: ProductPr | null,
+  env: NodeJS.ProcessEnv,
+): { url: string; started: boolean } {
+  if (isStubEnvSet(env)) return { url: PRODUCT_APP_URL, started: false }
+  const checkout =
+    pr !== null && existsSync(implementationCheckoutRoot(productRoot, pr.headRefName))
+      ? implementationCheckoutRoot(productRoot, pr.headRefName)
+      : productRoot
+  try {
+    const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
+      cwd: checkout,
+      env: Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
+      detached: true,
+      stdio: 'ignore',
+      shell: process.platform === 'win32',
+    })
+    child.unref()
+    return { url: PRODUCT_APP_URL, started: true }
+  } catch {
+    return { url: PRODUCT_APP_URL, started: false }
+  }
+}
+
 export function renderOpenResult(result: OpenCommandResult): string {
   if (result.kind === 'idle') {
     const position = result.stage === null ? 'no run in flight' : `${result.stage} (${result.suspension ?? 'running'})`
@@ -120,6 +213,12 @@ export function renderOpenResult(result: OpenCommandResult): string {
     ]
     return lines.join('\n')
   }
+  if (result.kind === 'review-gate') {
+    return renderReviewGate(result)
+  }
+  if (result.kind === 'disposed') {
+    return renderDisposition(result.result)
+  }
   return [
     'PICK RECORDED',
     `  product: ${result.product}`,
@@ -128,4 +227,87 @@ export function renderOpenResult(result: OpenCommandResult): string {
     '  resolved: the fork suspension cleared and the Line resumes along the picked option',
     `  pick visible on the Tracker: ${result.repo}#${result.issueNumber}`,
   ].join('\n')
+}
+
+function renderReviewGate(result: Extract<OpenCommandResult, { kind: 'review-gate' }>): string {
+  const evidence = result.evidence
+  const dispositions = evidence.barGreen ? 'advance, revise, halt' : 'revise, halt'
+  const checklist = evidence.reviewer
+    ? `coverage=${evidence.reviewer.checklist.coverage}, scope=${evidence.reviewer.checklist.scope}, standards=${evidence.reviewer.checklist.standards}, tests=${evidence.reviewer.checklist.tests}`
+    : '(none)'
+  const lines = [
+    'REVIEW GATE',
+    `  product: ${result.product}`,
+    `  spec: ${evidence.specUrl}`,
+    '  spec excerpt:',
+    ...specExcerpt(evidence.spec).map((line) => `    ${line}`),
+    `  automated bar: ${evidence.barOutcome}`,
+    `  reviewer advice: ${evidence.reviewer?.advice ?? '(none)'} (advice only)`,
+    `  reviewer checklist: ${checklist}`,
+    `  app: ${evidence.appUrl}${result.appStarted ? ' (dev server started)' : ''}`,
+    `  dispositions: ${dispositions}`,
+  ]
+  if (evidence.barGreen) {
+    lines.push(`  advance: factory open ${result.product} --disposition advance`)
+  } else {
+    lines.push('  advance: not offered (bar is not green; halt instead of a silent override)')
+  }
+  lines.push(`  revise: factory open ${result.product} --disposition revise [--target implementation|spec]`)
+  lines.push(`  halt: factory open ${result.product} --disposition halt`)
+  lines.push('  automated bar report:')
+  for (const line of reportExcerpt(evidence.barReport, 16)) lines.push(`    ${line}`)
+  lines.push('  reviewer report:')
+  for (const line of reportExcerpt(evidence.reviewerReport, 16)) lines.push(`    ${line}`)
+  lines.push('  note: Vercel deploy stays documented-only, executed by the Operator')
+  return lines.join('\n')
+}
+
+function specExcerpt(spec: string): string[] {
+  const lines = spec
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 8)
+  return lines.length > 0 ? lines : ['(no spec found on the Line issue)']
+}
+
+function reportExcerpt(markdown: string, maxLines: number): string[] {
+  if (markdown.trim().length === 0) return ['(none)']
+  return markdown
+    .split(/\r?\n/)
+    .filter((line) => !line.startsWith('```'))
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
+    .slice(0, maxLines)
+}
+
+function renderDisposition(result: ReviewDispositionResult): string {
+  if (result.disposition === 'advance') {
+    const pr = result.pr
+    return [
+      'SHIPPED',
+      `  product: ${result.product}`,
+      '  disposition: advance',
+      `  pr: #${pr?.number ?? '?'} merged (${pr?.url ?? ''})`,
+      '  ship is the merge',
+      '  Vercel deploy stays documented-only, executed by the Operator',
+    ].join('\n')
+  }
+  if (result.disposition === 'halt') {
+    return [
+      'LINE HALTED',
+      `  product: ${result.product}`,
+      '  disposition: halt',
+      '  pr: not merged',
+      '  the Line is stopped',
+    ].join('\n')
+  }
+  const lines = ['REVISE RECORDED', `  product: ${result.product}`, `  target: ${result.target ?? 'implementation'}`]
+  if (result.revisionTicket !== null) {
+    lines.push(`  ticket: #${result.revisionTicket.number} — ${result.revisionTicket.title}`)
+  }
+  lines.push(
+    result.target === 'spec' ? '  the Line returns to the spec gate' : '  the Line returns to implementation',
+  )
+  return lines.join('\n')
 }

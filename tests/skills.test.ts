@@ -9,7 +9,7 @@ import { loadStageInstructions, skillsDir, stageSkillName } from '../src/skills.
 test('stageSkillName maps the tickets stage to to-tickets and implementation to implement', () => {
   assert.equal(stageSkillName('tickets'), 'to-tickets')
   assert.equal(stageSkillName('implementation'), 'implement')
-  assert.equal(stageSkillName('review'), null)
+  assert.equal(stageSkillName('review'), 'code-review')
 })
 
 test('skillsDir defaults to the home-agent skills path and honors the override', () => {

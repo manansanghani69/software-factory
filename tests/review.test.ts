@@ -164,6 +164,15 @@ test('a green checkout yields a green review-bar report', () => {
     const report = lineIssue.comments.find((comment) => comment.body.includes('## Review-bar report'))
     assert.ok(report)
     assert.match(report.body, /\*\*Outcome:\*\* green/)
+    const reviewer = lineIssue.comments.find((comment) => comment.body.includes('## Reviewer report'))
+    assert.ok(reviewer, 'the independent reviewer posted a report')
+    assert.match(reviewer.body, /\*\*Advice:\*\* advance/)
+    assert.match(reviewer.body, /\*\*Coverage:\*\* pass/)
+    assert.match(reviewer.body, /\*\*Scope:\*\* pass/)
+    assert.match(reviewer.body, /\*\*Standards:\*\* pass/)
+    assert.match(reviewer.body, /\*\*Tests:\*\* pass/)
+    assert.match(reviewer.body, /### Judgment/)
+    assert.match(reviewer.body, /advice only/)
 
     const run = readRunTable(dbPath)[0]!
     assert.equal(run.stage, 'review')
@@ -186,6 +195,11 @@ test('a red checkout auto-revises by re-running implementation without the Opera
     assert.ok(lineIssue)
     assert.ok(lineIssue.comments.some((comment) => comment.body.includes('**Outcome:** revise')))
     assert.ok(lineIssue.comments.some((comment) => comment.body.includes('## Stage report — implementation')))
+    assert.equal(
+      lineIssue.comments.some((comment) => comment.body.includes('## Reviewer report')),
+      false,
+      'a red bar auto-revises without waiting on the reviewer',
+    )
 
     const run = readRunTable(dbPath)[0]!
     assert.equal(run.stage, 'implementation')
@@ -213,6 +227,9 @@ test('two consecutive failed revise rounds make the third auto-halt with evidenc
     assert.equal(reports.length, 3)
     assert.match(reports.at(-1)!.body, /\*\*Outcome:\*\* halt/)
     assert.match(reports.at(-1)!.body, /boom/)
+    const reviewer = lineIssue.comments.find((comment) => comment.body.includes('## Reviewer report'))
+    assert.ok(reviewer, 'halt includes the reviewer\'s evidence')
+    assert.match(reviewer.body, /\*\*Advice:\*\* halt/)
 
     const run = readRunTable(dbPath)[0]!
     assert.equal(run.stage, 'review')
